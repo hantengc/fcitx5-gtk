@@ -14,6 +14,7 @@ struct _FcitxIMContext {
     GtkIMContext parent;
 
     GtkWidget *client_widget;
+    bool has_rect;
     GdkRectangle area;
     FcitxGClient *client;
     GtkIMContext *slave;
@@ -26,6 +27,7 @@ struct _FcitxIMContext {
     gboolean is_inpreedit;
     gboolean is_wayland;
     char *preedit_string;
+    char *commit_preedit_string;
     char *surrounding_text;
     int cursor_pos;
     guint64 capability_from_toolkit;
@@ -38,6 +40,8 @@ struct _FcitxIMContext {
     GHashTable *pending_events;
     GHashTable *handled_events;
     GQueue *handled_events_list;
+
+    gboolean ignore_reset;
 
     fcitx::gtk::Gtk4InputWindow *candidate_window;
 };

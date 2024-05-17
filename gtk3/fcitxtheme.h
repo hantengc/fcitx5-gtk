@@ -28,6 +28,14 @@ enum class Gravity {
     BottomRight
 };
 
+enum class PageButtonAlignment {
+    Top,
+    FirstCandidate,
+    Center,
+    LastCandidate,
+    Bottom
+};
+
 struct MarginConfig {
     void load(GKeyFile *file, const char *group);
 
@@ -72,6 +80,7 @@ struct InputPanelThemeConfig {
     bool fullWidthHighlight = true;
     GdkRGBA highlightColor;
     GdkRGBA highlightBackgroundColor;
+    PageButtonAlignment buttonAlignment;
     BackgroundImageConfig background;
     HighlightBackgroundImageConfig highlight;
     MarginConfig contentMargin;
@@ -79,6 +88,7 @@ struct InputPanelThemeConfig {
     ActionImageConfig prev;
     ActionImageConfig next;
     MarginConfig blurMargin;
+    MarginConfig shadowMargin;
 };
 
 class ThemeImage {
@@ -143,6 +153,8 @@ public:
 
     void paint(cairo_t *c, const ActionImageConfig &cfg, double alpha = 1.0);
 
+    const auto &name() const { return name_; }
+
 private:
     std::unordered_map<const BackgroundImageConfig *, ThemeImage>
         backgroundImageTable_;
@@ -165,6 +177,8 @@ public:
     Theme theme_;
 
 private:
+    void resetThemeFileMonitor();
+
     static void configChangedCallback(GFileMonitor *, GFile *, GFile *,
                                       GFileMonitorEvent event_type,
                                       gpointer user_data) {
@@ -176,6 +190,7 @@ private:
     }
 
     GObjectUniquePtr<GFileMonitor> monitor_;
+    GObjectUniquePtr<GFileMonitor> themeFileMonitor_;
 };
 
 inline void cairoSetSourceColor(cairo_t *cr, const GdkRGBA &color) {

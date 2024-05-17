@@ -5,19 +5,24 @@
  *
  */
 #include "gtk3inputwindow.h"
+#include "fcitxtheme.h"
 #include <gtk/gtk.h>
 
 namespace fcitx::gtk {
 
 Gtk3InputWindow::Gtk3InputWindow(ClassicUIConfig *config, FcitxGClient *client,
                                  bool isWayland)
-    : InputWindow(config, client), isWayland_(isWayland) {}
+    : InputWindow(config, client), isWayland_(isWayland) {
+    rect_.x = rect_.y = rect_.height = rect_.width = 0;
+}
 
 Gtk3InputWindow::~Gtk3InputWindow() {
     if (window_) {
         g_signal_handlers_disconnect_by_data(window_.get(), this);
         window_.reset();
     }
+    // Clean up weak pointer reference.
+    setParent(nullptr);
 }
 
 void Gtk3InputWindow::draw(cairo_t *cr) { paint(cr, width_, height_); }
@@ -48,6 +53,9 @@ void Gtk3InputWindow::setParent(GdkWindow *parent) {
         g_object_add_weak_pointer(G_OBJECT(parent),
                                   reinterpret_cast<gpointer *>(&parent_));
         if (window_) {
+            gtk_window_set_screen(GTK_WINDOW(window_.get()),
+                                  gdk_window_get_screen(parent));
+            gtk_widget_realize(window_.get());
             auto window = gtk_widget_get_window(window_.get());
             if (window) {
                 gdk_window_set_transient_for(window, parent);
@@ -76,20 +84,33 @@ void Gtk3InputWindow::setCursorRect(GdkRectangle rect) {
 }
 
 void Gtk3InputWindow::update() {
-    init();
     if (visible() && parent_) {
+        init();
         pango_cairo_context_set_font_options(
             context_.get(),
             gdk_screen_get_font_options(gtk_widget_get_screen(window_.get())));
         dpi_ = gdk_screen_get_resolution(gtk_widget_get_screen(window_.get()));
+        pango_cairo_context_set_resolution(context_.get(), dpi_);
         std::tie(width_, height_) = sizeHint();
+        if (width_ <= 0 || height_ <= 0) {
+            gtk_widget_hide(window_.get());
+            return;
+        }
+
+        if (auto gdkWindow = gtk_widget_get_window(window_.get())) {
+            gdk_window_set_shadow_width(
+                gdkWindow, config_->theme_.shadowMargin.marginLeft,
+                config_->theme_.shadowMargin.marginRight,
+                config_->theme_.shadowMargin.marginTop,
+                config_->theme_.shadowMargin.marginBottom);
+        }
 
         gtk_widget_realize(window_.get());
         gtk_window_resize(GTK_WINDOW(window_.get()), width_, height_);
         gtk_widget_queue_draw(window_.get());
         reposition();
         gtk_widget_show_all(window_.get());
-    } else {
+    } else if (window_) {
         gtk_widget_hide(window_.get());
     }
 }
@@ -98,8 +119,12 @@ void Gtk3InputWindow::init() {
     if (window_) {
         return;
     }
+    if (!parent_) {
+        return;
+    }
     window_.reset(gtk_window_new(GTK_WINDOW_POPUP));
     auto window = window_.get();
+    gtk_window_set_screen(GTK_WINDOW(window), gdk_window_get_screen(parent_));
     gtk_container_set_border_width(GTK_CONTAINER(window), 0);
     gtk_window_set_decorated(GTK_WINDOW(window), false);
 
@@ -149,8 +174,7 @@ void Gtk3InputWindow::init() {
     g_signal_connect(G_OBJECT(window), "button-release-event",
                      G_CALLBACK(+release), this);
     gtk_widget_realize(window_.get());
-    if (auto gdkWindow = gtk_widget_get_window(window_.get());
-        gdkWindow && parent_) {
+    if (auto gdkWindow = gtk_widget_get_window(window_.get())) {
         gdk_window_set_transient_for(gdkWindow, parent_);
     }
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.6)
-project(fcitx5-gtk VERSION 5.0.12)
+project(fcitx5-gtk VERSION 5.1.1)
 
 find_package(ECM REQUIRED 1.0.0)
 set(CMAKE_MODULE_PATH ${ECM_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
@@ -14,8 +14,9 @@ include(ECMUninstallTarget)
 option(ENABLE_GIR "GObject Introspection" ON)
 option(ENABLE_GTK2_IM_MODULE "Enable GTK2 IM Module" ON)
 option(ENABLE_GTK3_IM_MODULE "Enable GTK3 IM Module" ON)
-option(ENABLE_GTK4_IM_MODULE "Enable GTK4 IM Module" OFF)
+option(ENABLE_GTK4_IM_MODULE "Enable GTK4 IM Module" ON)
 option(ENABLE_SNOOPER "Enable Key Snooper for gtk app" ON)
+option(BUILD_ONLY_PLUGIN "Build only IM Module" OFF)
 
 set(NO_SNOOPER_APPS ".*chrome.*,.*chromium.*,firefox.*,Do.*"
     CACHE STRING "Disable Key Snooper for following app by default.")
@@ -28,12 +29,20 @@ find_package(PkgConfig)
 find_package(XKBCommon)
 pkg_check_modules(GLib2 REQUIRED IMPORTED_TARGET "glib-2.0>=2.56")
 pkg_check_modules(Gio2 REQUIRED IMPORTED_TARGET "gio-2.0")
+pkg_check_modules(GioUnix2 REQUIRED IMPORTED_TARGET "gio-unix-2.0")
 pkg_check_modules(GObject2 REQUIRED IMPORTED_TARGET "gobject-2.0")
-add_subdirectory(fcitx-gclient)
 
 set(CMAKE_C_VISIBILITY_PRESET default)
 
 include(cmake/CompilerSettings.cmake)
+
+if (BUILD_ONLY_PLUGIN)
+    set(GCLIENT_LIBRARY_TYPE STATIC)
+else()
+    set(GCLIENT_LIBRARY_TYPE SHARED)
+endif()
+
+add_subdirectory(fcitx-gclient)
 
 set(NEED_X11 FALSE)
 if (ENABLE_GTK2_IM_MODULE)

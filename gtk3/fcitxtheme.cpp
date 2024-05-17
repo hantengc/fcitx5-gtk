@@ -65,6 +65,25 @@ Gravity getValue(GKeyFile *configFile, const char *group, const char *key,
     return defaultValue;
 }
 
+// Read PageButtonAlignment enum value
+PageButtonAlignment getValue(GKeyFile *configFile, const char *group,
+                             const char *key,
+                             PageButtonAlignment defaultValue) {
+    std::string value = getValue(configFile, group, key, "");
+    if (value == "Top") {
+        return PageButtonAlignment::Top;
+    } else if (value == "First Candidate") {
+        return PageButtonAlignment::FirstCandidate;
+    } else if (value == "Center") {
+        return PageButtonAlignment::Center;
+    } else if (value == "Last Candidate") {
+        return PageButtonAlignment::LastCandidate;
+    } else if (value == "Bottom") {
+        return PageButtonAlignment::Bottom;
+    }
+    return defaultValue;
+}
+
 // Read int value
 int getValue(GKeyFile *configFile, const char *group, const char *key,
              int defaultValue) {
@@ -736,6 +755,8 @@ void InputPanelThemeConfig::load(GKeyFile *file) {
     highlightBackgroundColor =
         getValue(file, "InputPanel", "HighlightBackgroundColor",
                  makeGdkRGBA(0xa5, 0xa5, 0xa5, 255));
+    buttonAlignment = getValue(file, "InputPanel", "PageButtonAlignment",
+                               PageButtonAlignment::Bottom);
     background.load(file, "InputPanel/Background");
     highlight.load(file, "InputPanel/Highlight");
     contentMargin.load(file, "InputPanel/ContentMargin");
@@ -743,6 +764,7 @@ void InputPanelThemeConfig::load(GKeyFile *file) {
     prev.load(file, "InputPanel/PrevPage");
     next.load(file, "InputPanel/NextPage");
     blurMargin.load(file, "InputPanel/BlurMargin");
+    shadowMargin.load(file, "InputPanel/ShadowMargin");
 }
 
 void MarginConfig::load(GKeyFile *file, const char *group) {
@@ -796,6 +818,7 @@ ClassicUIConfig::ClassicUIConfig() {
 }
 
 ClassicUIConfig::~ClassicUIConfig() {
+    resetThemeFileMonitor();
     if (monitor_) {
         g_signal_handlers_disconnect_by_func(
             monitor_.get(),
@@ -807,9 +830,10 @@ ClassicUIConfig::~ClassicUIConfig() {
 
 void ClassicUIConfig::load() {
     UniqueCPtr<GKeyFile, g_key_file_unref> configFile{g_key_file_new()};
-    auto file = locateXdgConfigFile("fcitx5/conf/classicui.conf");
+    auto filename = locateXdgConfigFile("fcitx5/conf/classicui.conf");
     gchar *content = nullptr;
-    if (file && g_file_get_contents(file.get(), &content, nullptr, nullptr)) {
+    if (filename &&
+        g_file_get_contents(filename.get(), &content, nullptr, nullptr)) {
         UniqueCPtr<gchar, g_free> ini(g_strdup_printf("[Group]\n%s", content));
         g_free(content);
         g_key_file_load_from_data(configFile.get(), ini.get(), -1,
@@ -826,6 +850,32 @@ void ClassicUIConfig::load() {
         configFile.get(), "Group", "UseInputMethodLangaugeToDisplayText", true);
 
     theme_.load(themeName_);
+
+    resetThemeFileMonitor();
+    if (!theme_.name().empty()) {
+        UniqueCPtr<char, g_free> filename(
+            g_build_filename(g_get_user_data_dir(), "fcitx5/themes",
+                             theme_.name().data(), "theme.conf", nullptr));
+        GObjectUniquePtr<GFile> file(g_file_new_for_path(filename.get()));
+        themeFileMonitor_.reset(g_file_monitor_file(
+            file.get(), G_FILE_MONITOR_NONE, nullptr, nullptr));
+
+        g_signal_connect(themeFileMonitor_.get(), "changed",
+                         G_CALLBACK(&ClassicUIConfig::configChangedCallback),
+                         this);
+    }
+}
+
+void ClassicUIConfig::resetThemeFileMonitor() {
+    if (!themeFileMonitor_) {
+        return;
+    }
+    g_signal_handlers_disconnect_by_func(
+        themeFileMonitor_.get(),
+        reinterpret_cast<gpointer>(
+            G_CALLBACK(&ClassicUIConfig::configChangedCallback)),
+        this);
+    themeFileMonitor_.reset();
 }
 
 } // namespace fcitx::gtk
