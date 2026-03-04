@@ -593,6 +593,12 @@ static gboolean fcitx_im_context_filter_keypress(GtkIMContext *context,
 
     if (fcitx_g_client_is_valid(fcitxcontext->client) &&
         fcitxcontext->has_focus) {
+        /* set_cursor_location_internal() will get origin from X server,
+         * it blocks UI. So delay it to idle callback. */
+        gdk_threads_add_idle_full(
+            G_PRIORITY_DEFAULT_IDLE, (GSourceFunc)_set_cursor_location_internal,
+            g_object_ref(fcitxcontext), (GDestroyNotify)g_object_unref);
+
         _request_surrounding_text(&fcitxcontext);
         if (G_UNLIKELY(!fcitxcontext))
             return FALSE;
